@@ -4,8 +4,20 @@ import Foundation
 /// of stdout, stderr, and exit codes.
 enum ProcessRunner {
 
-    /// Path to the Apple container CLI binary
-    static let containerBinary = "/usr/local/bin/container"
+    /// Path to the Apple container CLI binary, resolved by searching known locations.
+    static let containerBinary: String = {
+        let candidates = [
+            "/opt/homebrew/bin/container",
+            "/usr/local/bin/container",
+        ]
+        for path in candidates {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+        // Fall back; will produce a clear error at exec time
+        return "/usr/local/bin/container"
+    }()
 
     /// Execute a container command with full stdio passthrough.
     /// Returns the exit code from the container process.
