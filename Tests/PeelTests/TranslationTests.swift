@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import peel
 
 // MARK: - ImageRefResolver Tests
@@ -59,4 +60,22 @@ import Testing
 
 @Test func translateHomeDirBindMount() {
     #expect(FlagMapper.translateVolume("~/data:/container/data") == ["--mount", "source=~/data,target=/container/data"])
+}
+
+@Test func translateFileMountFallsBackToDirectory() throws {
+    // Create a temp file to trigger file mount detection
+    let tmpDir = NSTemporaryDirectory()
+    let tmpFile = (tmpDir as NSString).appendingPathComponent("peel-test-\(UUID().uuidString).txt")
+    FileManager.default.createFile(atPath: tmpFile, contents: nil)
+    defer { try? FileManager.default.removeItem(atPath: tmpFile) }
+
+    let result = FlagMapper.translateVolume("\(tmpFile):/app/config.txt:ro")
+    // Should mount the parent directory instead of the file
+    #expect(result == ["--mount", "source=\(tmpDir.hasSuffix("/") ? String(tmpDir.dropLast()) : tmpDir),target=/app,readonly"])
+}
+
+@Test func translateNonexistentPathPassesThrough() {
+    // Paths that don't exist on disk should pass through unchanged
+    let result = FlagMapper.translateVolume("/nonexistent/path:/container/path")
+    #expect(result == ["--mount", "source=/nonexistent/path,target=/container/path"])
 }
