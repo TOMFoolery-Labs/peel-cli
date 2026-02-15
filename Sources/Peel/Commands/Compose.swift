@@ -5,7 +5,7 @@ struct Compose: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "compose",
         abstract: "Manage multi-container applications (translates to: container run/stop/rm)",
-        subcommands: [ComposeUp.self, ComposeDown.self]
+        subcommands: [ComposeUp.self, ComposeDown.self, ComposePS.self, ComposeLogs.self]
     )
 }
 
@@ -299,6 +299,9 @@ struct ComposeDown: ParsableCommand {
     @Flag(name: .long, help: "Show the translated commands without executing them")
     var dryRun: Bool = false
 
+    @Flag(name: .shortAndLong, help: "Remove named volumes declared in the compose file")
+    var volumes: Bool = false
+
     @Option(name: .shortAndLong, help: "Compose file path")
     var file: String?
 
@@ -362,6 +365,231 @@ struct ComposeDown: ParsableCommand {
 
         if failed {
             throw ExitCode(1)
+        }
+    }
+}
+
+// MARK: - compose ps
+
+struct ComposePS: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "ps",
+        abstract: "List containers for compose services"
+    )
+
+    @Option(name: .shortAndLong, help: "Compose file path")
+    var file: String?
+
+    @Option(name: .shortAndLong, help: "Project name")
+    var projectName: String?
+
+    @Option(name: .long, help: "Output format (table or json)")
+    var format: String?
+
+    @Option(name: .long, help: "Filter by status (running, exited, etc.)")
+    var status: String?
+
+    @Flag(name: .shortAndLong, help: "Only display container IDs")
+    var quiet: Bool = false
+
+    func run() throws {
+        let composeFile: ComposeFile
+        do {
+            composeFile = try ComposeFileLoader.load(from: file)
+        } catch {
+            fputs("\(error)\n", stderr)
+            throw ExitCode(1)
+        }
+
+        let project = projectName ?? ComposeFileLoader.deriveProjectName()
+
+        // Get all container names for this compose project
+        let containerNames = composeFile.services.map { (serviceName, service) in
+            ServiceTranslator.containerName(
+                service: service,
+                serviceName: serviceName,
+                projectName: project
+            )
+        }
+
+        // Query each container via `container ls` and filter to our containers
+        let (exitCode, output) = ProcessRunner.execCapture(["ls", "--all"])
+        if exitCode != 0 {
+            throw ExitCode(exitCode)
+        }
+
+        let lines = output.components(separatedBy: "\n")
+        let nameSet = Set(containerNames)
+
+        if format == "json" {
+            // Output JSON for each matching container
+            for name in containerNames {
+                let (code, inspectOutput) = ProcessRunner.execCapture(["inspect", name])
+                if code == 0 {
+                    print(inspectOutput.trimmingCharacters(in: .whitespacesAndNewlines))
+                }
+            }
+            return
+        }
+
+        if quiet {
+            // Just print container names (Docker -q prints IDs, we use names)
+            for name in containerNames {
+                // Check if container exists in ls output
+                if lines.contains(where: { $0.contains(name) }) {
+                    let matchesStatus = status == nil || lines.first(where: { $0.contains(name) })?.lowercased().contains(status!.lowercased()) == true
+                    if matchesStatus {
+                        print(name)
+                    }
+                }
+            }
+            return
+        }
+
+        // Table output: print header + matching lines
+        if let header = lines.first, !header.isEmpty {
+            print(header)
+        }
+        for line in lines.dropFirst() where !line.isEmpty {
+            if nameSet.contains(where: { line.contains($0) }) {
+                let matchesStatus = status == nil || line.lowercased().contains(status!.lowercased())
+                if matchesStatus {
+                    print(line)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - compose logs
+
+struct ComposeLogs: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "logs",
+        abstract: "View output from containers"
+    )
+
+    @Option(name: .shortAndLong, help: "Compose file path")
+    var file: String?
+
+    @Option(name: .shortAndLong, help: "Project name")
+    var projectName: String?
+
+    @Flag(name: .shortAndLong, help: "Follow log output")
+    var follow: Bool = false
+
+    @Option(name: .long, help: "Number of lines to show from the end of the logs")
+    var tail: Int?
+
+    @Argument(help: "Service name(s) to show logs for (default: all)")
+    var services: [String] = []
+
+    func run() throws {
+        let composeFile: ComposeFile
+        do {
+            composeFile = try ComposeFileLoader.load(from: file)
+        } catch {
+            fputs("\(error)\n", stderr)
+            throw ExitCode(1)
+        }
+
+        let project = projectName ?? ComposeFileLoader.deriveProjectName()
+
+        // Determine which services to show logs for
+        let targetServices: [String]
+        if services.isEmpty {
+            targetServices = composeFile.services.keys.sorted()
+        } else {
+            targetServices = services
+        }
+
+        let containers: [(name: String, serviceName: String)] = targetServices.compactMap { serviceName in
+            guard let service = composeFile.services[serviceName] else {
+                fputs("peel: warning: no such service '\(serviceName)'\n", stderr)
+                return nil
+            }
+            let name = ServiceTranslator.containerName(
+                service: service,
+                serviceName: serviceName,
+                projectName: project
+            )
+            return (name: name, serviceName: serviceName)
+        }
+
+        if !follow {
+            // Non-follow mode: print logs sequentially for each container
+            for (containerName, serviceName) in containers {
+                var args: [String] = ["logs"]
+                if let tail = tail {
+                    args.append(contentsOf: ["--tail", String(tail)])
+                }
+                args.append(containerName)
+
+                let (exitCode, output) = ProcessRunner.execCapture(args)
+                if exitCode == 0 && !output.isEmpty {
+                    let maxLen = containers.map(\.serviceName.count).max() ?? 0
+                    let padded = serviceName.padding(toLength: maxLen, withPad: " ", startingAt: 0)
+                    for line in output.components(separatedBy: "\n") where !line.isEmpty {
+                        print("\(padded)  | \(line)")
+                    }
+                }
+            }
+            return
+        }
+
+        // Follow mode: stream logs from all containers
+        guard !containers.isEmpty else { return }
+
+        var logProcesses: [Process] = []
+        let maxLen = containers.map(\.serviceName.count).max() ?? 0
+
+        for (containerName, serviceName) in containers {
+            var args = ["logs", "--follow"]
+            if let tail = tail {
+                args.append(contentsOf: ["--tail", String(tail)])
+            }
+            args.append(containerName)
+
+            guard let process = ProcessRunner.execStream(args) else {
+                fputs("peel: warning: could not attach to logs for '\(serviceName)'\n", stderr)
+                continue
+            }
+
+            logProcesses.append(process)
+
+            let padded = serviceName.padding(toLength: maxLen, withPad: " ", startingAt: 0)
+            let pipe = process.standardOutput as! Pipe
+
+            pipe.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                guard !data.isEmpty else {
+                    handle.readabilityHandler = nil
+                    return
+                }
+                if let text = String(data: data, encoding: .utf8) {
+                    for line in text.components(separatedBy: "\n") where !line.isEmpty {
+                        fputs("\(padded)  | \(line)\n", stdout)
+                        fflush(stdout)
+                    }
+                }
+            }
+        }
+
+        // Wait for SIGINT
+        let sigintReceived = DispatchSemaphore(value: 0)
+        let sigintSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: .global())
+        signal(SIGINT, SIG_IGN)
+        sigintSource.setEventHandler {
+            sigintReceived.signal()
+        }
+        sigintSource.resume()
+
+        sigintReceived.wait()
+        sigintSource.cancel()
+        signal(SIGINT, SIG_DFL)
+
+        for process in logProcesses {
+            if process.isRunning { process.terminate() }
         }
     }
 }
