@@ -469,7 +469,7 @@ struct ComposeLogs: ParsableCommand {
         abstract: "View output from containers"
     )
 
-    @Option(name: .shortAndLong, help: "Compose file path")
+    @Option(name: .long, help: "Compose file path")
     var file: String?
 
     @Option(name: .shortAndLong, help: "Project name")
@@ -478,7 +478,7 @@ struct ComposeLogs: ParsableCommand {
     @Flag(name: .shortAndLong, help: "Follow log output")
     var follow: Bool = false
 
-    @Option(name: .long, help: "Number of lines to show from the end of the logs")
+    @Option(name: [.customShort("n"), .long], help: "Number of lines to show from the end of the logs")
     var tail: Int?
 
     @Argument(help: "Service name(s) to show logs for (default: all)")
