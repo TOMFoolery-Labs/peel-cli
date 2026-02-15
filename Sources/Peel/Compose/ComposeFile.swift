@@ -3,6 +3,13 @@ import Foundation
 /// Top-level representation of a Docker Compose file.
 struct ComposeFile: Decodable {
     let services: [String: ComposeService]
+    let networks: [String: ComposeNetwork?]?
+}
+
+/// A network definition within a compose file.
+/// Parsed but mostly ignored — Apple Containers has one network type.
+struct ComposeNetwork: Decodable {
+    let driver: String?
 }
 
 /// A single service definition within a compose file.
@@ -14,6 +21,8 @@ struct ComposeService: Decodable {
     let volumes: [String]?
     let environment: ComposeEnvironment?
     let restart: String?  // Parsed but ignored
+    let dependsOn: [String]?
+    let networks: [String]?
 
     enum CodingKeys: String, CodingKey {
         case image
@@ -23,7 +32,62 @@ struct ComposeService: Decodable {
         case volumes
         case environment
         case restart
+        case dependsOn = "depends_on"
+        case networks
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        image = try container.decodeIfPresent(String.self, forKey: .image)
+        command = try container.decodeIfPresent(ComposeCommand.self, forKey: .command)
+        containerName = try container.decodeIfPresent(String.self, forKey: .containerName)
+        ports = try container.decodeIfPresent([ComposePort].self, forKey: .ports)
+        volumes = try container.decodeIfPresent([String].self, forKey: .volumes)
+        environment = try container.decodeIfPresent(ComposeEnvironment.self, forKey: .environment)
+        restart = try container.decodeIfPresent(String.self, forKey: .restart)
+        networks = try container.decodeIfPresent([String].self, forKey: .networks)
+
+        // depends_on: support both short form (list) and long form (map — extract keys only)
+        if container.contains(.dependsOn) {
+            if let list = try? container.decode([String].self, forKey: .dependsOn) {
+                dependsOn = list
+            } else if let map = try? container.decode([String: DependsOnCondition].self, forKey: .dependsOn) {
+                dependsOn = Array(map.keys).sorted()
+            } else {
+                dependsOn = nil
+            }
+        } else {
+            dependsOn = nil
+        }
+    }
+
+    /// Memberwise initializer for tests and internal use.
+    init(
+        image: String?,
+        command: ComposeCommand?,
+        containerName: String?,
+        ports: [ComposePort]?,
+        volumes: [String]?,
+        environment: ComposeEnvironment?,
+        restart: String?,
+        dependsOn: [String]? = nil,
+        networks: [String]? = nil
+    ) {
+        self.image = image
+        self.command = command
+        self.containerName = containerName
+        self.ports = ports
+        self.volumes = volumes
+        self.environment = environment
+        self.restart = restart
+        self.dependsOn = dependsOn
+        self.networks = networks
+    }
+}
+
+/// Long-form depends_on condition — parsed to extract service names, conditions ignored.
+private struct DependsOnCondition: Decodable {
+    let condition: String?
 }
 
 /// Command that can be either a string ("cmd arg1 arg2") or an array (["cmd", "arg1"]).

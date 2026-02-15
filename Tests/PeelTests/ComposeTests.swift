@@ -370,3 +370,191 @@ import Testing
     let name = ComposeFileLoader.deriveProjectName(from: "/Users/dev/My Project (v2)")
     #expect(name == "myprojectv2")
 }
+
+// MARK: - depends_on Parsing Tests
+
+@Test func parseDependsOnShortForm() throws {
+    let yaml = """
+    services:
+      web:
+        image: nginx
+        depends_on:
+          - db
+          - redis
+      db:
+        image: postgres
+      redis:
+        image: redis
+    """
+    let compose = try ComposeFileLoader.parse(yaml)
+    #expect(compose.services["web"]?.dependsOn == ["db", "redis"])
+    #expect(compose.services["db"]?.dependsOn == nil)
+}
+
+@Test func parseDependsOnLongForm() throws {
+    let yaml = """
+    services:
+      web:
+        image: nginx
+        depends_on:
+          db:
+            condition: service_started
+          redis:
+            condition: service_healthy
+      db:
+        image: postgres
+      redis:
+        image: redis
+    """
+    let compose = try ComposeFileLoader.parse(yaml)
+    // Long form extracts just the service names, sorted
+    #expect(compose.services["web"]?.dependsOn == ["db", "redis"])
+}
+
+// MARK: - Network Parsing Tests
+
+@Test func parseNetworks() throws {
+    let yaml = """
+    services:
+      web:
+        image: nginx
+        networks:
+          - frontend
+      api:
+        image: myapi
+        networks:
+          - frontend
+          - backend
+    networks:
+      frontend:
+      backend:
+        driver: bridge
+    """
+    let compose = try ComposeFileLoader.parse(yaml)
+    #expect(compose.services["web"]?.networks == ["frontend"])
+    #expect(compose.services["api"]?.networks == ["frontend", "backend"])
+    #expect(compose.networks?.keys.sorted() == ["backend", "frontend"])
+}
+
+@Test func parseNoNetworks() throws {
+    let yaml = """
+    services:
+      web:
+        image: nginx
+    """
+    let compose = try ComposeFileLoader.parse(yaml)
+    #expect(compose.networks == nil)
+    #expect(compose.services["web"]?.networks == nil)
+}
+
+// MARK: - Topological Sort Tests
+
+@Test func topologicalSortLinear() {
+    // A depends on B, B depends on C → [C, B, A]
+    let services: [String: ComposeService] = [
+        "a": ComposeService(image: "img", command: nil, containerName: nil, ports: nil,
+                            volumes: nil, environment: nil, restart: nil, dependsOn: ["b"]),
+        "b": ComposeService(image: "img", command: nil, containerName: nil, ports: nil,
+                            volumes: nil, environment: nil, restart: nil, dependsOn: ["c"]),
+        "c": ComposeService(image: "img", command: nil, containerName: nil, ports: nil,
+                            volumes: nil, environment: nil, restart: nil),
+    ]
+    let order = topologicalSort(services: services)
+    #expect(order == ["c", "b", "a"])
+}
+
+@Test func topologicalSortDiamond() {
+    // A depends on B and C; B and C both depend on D → D first, A last
+    let services: [String: ComposeService] = [
+        "a": ComposeService(image: "img", command: nil, containerName: nil, ports: nil,
+                            volumes: nil, environment: nil, restart: nil, dependsOn: ["b", "c"]),
+        "b": ComposeService(image: "img", command: nil, containerName: nil, ports: nil,
+                            volumes: nil, environment: nil, restart: nil, dependsOn: ["d"]),
+        "c": ComposeService(image: "img", command: nil, containerName: nil, ports: nil,
+                            volumes: nil, environment: nil, restart: nil, dependsOn: ["d"]),
+        "d": ComposeService(image: "img", command: nil, containerName: nil, ports: nil,
+                            volumes: nil, environment: nil, restart: nil),
+    ]
+    let order = topologicalSort(services: services)
+    #expect(order.first == "d")
+    #expect(order.last == "a")
+    // B and C can be in either order, but both must come after D and before A
+    let bIdx = order.firstIndex(of: "b")!
+    let cIdx = order.firstIndex(of: "c")!
+    let dIdx = order.firstIndex(of: "d")!
+    let aIdx = order.firstIndex(of: "a")!
+    #expect(dIdx < bIdx)
+    #expect(dIdx < cIdx)
+    #expect(bIdx < aIdx)
+    #expect(cIdx < aIdx)
+}
+
+@Test func topologicalSortCycleFallback() {
+    // A depends on B, B depends on A → cycle → falls back to alphabetical
+    let services: [String: ComposeService] = [
+        "a": ComposeService(image: "img", command: nil, containerName: nil, ports: nil,
+                            volumes: nil, environment: nil, restart: nil, dependsOn: ["b"]),
+        "b": ComposeService(image: "img", command: nil, containerName: nil, ports: nil,
+                            volumes: nil, environment: nil, restart: nil, dependsOn: ["a"]),
+    ]
+    let order = topologicalSort(services: services)
+    #expect(order == ["a", "b"])
+}
+
+@Test func topologicalSortNoDependencies() {
+    // No dependencies → alphabetical
+    let services: [String: ComposeService] = [
+        "z": ComposeService(image: "img", command: nil, containerName: nil, ports: nil,
+                            volumes: nil, environment: nil, restart: nil),
+        "a": ComposeService(image: "img", command: nil, containerName: nil, ports: nil,
+                            volumes: nil, environment: nil, restart: nil),
+        "m": ComposeService(image: "img", command: nil, containerName: nil, ports: nil,
+                            volumes: nil, environment: nil, restart: nil),
+    ]
+    let order = topologicalSort(services: services)
+    #expect(order == ["a", "m", "z"])
+}
+
+// MARK: - ServiceTranslator with Network
+
+@Test func translateServiceWithNetwork() throws {
+    let service = ComposeService(
+        image: "nginx",
+        command: nil,
+        containerName: nil,
+        ports: [.string("8080:80")],
+        volumes: nil,
+        environment: nil,
+        restart: nil
+    )
+    let args = try ServiceTranslator.translate(
+        service: service,
+        serviceName: "web",
+        projectName: "myproject",
+        networkName: "myproject_default"
+    )
+    // --network should appear before the image
+    let networkIdx = args.firstIndex(of: "--network")!
+    let networkNameIdx = args.firstIndex(of: "myproject_default")!
+    let imageIdx = args.firstIndex(of: "docker.io/library/nginx:latest")!
+    #expect(networkIdx + 1 == networkNameIdx)
+    #expect(networkNameIdx < imageIdx)
+}
+
+@Test func translateServiceWithoutNetwork() throws {
+    let service = ComposeService(
+        image: "nginx",
+        command: nil,
+        containerName: nil,
+        ports: nil,
+        volumes: nil,
+        environment: nil,
+        restart: nil
+    )
+    let args = try ServiceTranslator.translate(
+        service: service,
+        serviceName: "web",
+        projectName: "proj"
+    )
+    #expect(!args.contains("--network"))
+}

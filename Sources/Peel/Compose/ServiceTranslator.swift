@@ -9,12 +9,14 @@ enum ServiceTranslator {
     ///   - service: The compose service definition
     ///   - serviceName: The service key from the compose file
     ///   - projectName: The project name (used for container naming)
+    ///   - networkName: Optional network name to attach the container to
     /// - Returns: Array of arguments to pass to `container run`
     /// - Throws: `ComposeError.missingImage` if the service has no image field
     static func translate(
         service: ComposeService,
         serviceName: String,
-        projectName: String
+        projectName: String,
+        networkName: String? = nil
     ) throws -> [String] {
         guard let image = service.image else {
             throw ComposeError.missingImage(serviceName)
@@ -46,6 +48,11 @@ enum ServiceTranslator {
             for entry in environment.entries {
                 args.append(contentsOf: ["--env", entry])
             }
+        }
+
+        // Network
+        if let network = networkName {
+            args.append(contentsOf: ["--network", network])
         }
 
         // Image — resolve short references

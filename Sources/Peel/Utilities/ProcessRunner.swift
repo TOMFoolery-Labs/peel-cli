@@ -123,6 +123,29 @@ enum ProcessRunner {
         return process.terminationStatus
     }
 
+    /// Launch a container command and return the running Process with stdout piped.
+    /// Used for tailing logs where the caller reads output incrementally.
+    ///
+    /// - Parameter arguments: Arguments to pass to the `container` binary
+    /// - Returns: The running Process, or nil if launch failed. Stdout is available via the pipe.
+    static func execStream(_ arguments: [String]) -> Process? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: containerBinary)
+        process.arguments = arguments
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+
+        return process
+    }
+
     /// Execute a container command and capture its stdout output as a string.
     ///
     /// - Parameter arguments: Arguments to pass to the `container` binary
