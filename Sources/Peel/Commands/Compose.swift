@@ -521,7 +521,7 @@ struct ComposeLogs: ParsableCommand {
             for (containerName, serviceName) in containers {
                 var args: [String] = ["logs"]
                 if let tail = tail {
-                    args.append(contentsOf: ["--tail", String(tail)])
+                    args.append(contentsOf: ["-n", String(tail)])
                 }
                 args.append(containerName)
 
@@ -546,7 +546,7 @@ struct ComposeLogs: ParsableCommand {
         for (containerName, serviceName) in containers {
             var args = ["logs", "--follow"]
             if let tail = tail {
-                args.append(contentsOf: ["--tail", String(tail)])
+                args.append(contentsOf: ["-n", String(tail)])
             }
             args.append(containerName)
 

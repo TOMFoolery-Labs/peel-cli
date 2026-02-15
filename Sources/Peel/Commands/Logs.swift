@@ -24,7 +24,7 @@ struct Logs: ParsableCommand {
         if follow { args.append("--follow") }
 
         if let tail = tail {
-            args.append(contentsOf: ["--tail", String(tail)])
+            args.append(contentsOf: ["-n", String(tail)])
         }
 
         args.append(container)
