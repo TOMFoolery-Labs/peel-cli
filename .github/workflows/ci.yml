@@ -36,3 +36,44 @@ jobs:
           gh release create "${{ github.ref_name }}" peel \
             --title "${{ github.ref_name }}" \
             --generate-notes
+
+      - name: Compute SHA256
+        id: sha
+        run: echo "sha256=$(shasum -a 256 peel | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Update Homebrew formula
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAG="${GITHUB_REF_NAME}"
+          SHA="${{ steps.sha.outputs.sha256 }}"
+          FORMULA='class Peel < Formula
+            desc "Docker-compatible CLI for Apple Containers"
+            homepage "https://github.com/TOMFoolery-Labs/peel-cli"
+            url "https://github.com/TOMFoolery-Labs/peel-cli/releases/download/'"${TAG}"'/peel"
+            sha256 "'"${SHA}"'"
+            license "MIT"
+            version "'"${VERSION}"'"
+
+            depends_on :macos
+            depends_on arch: :arm64
+
+            def install
+              bin.install "peel"
+            end
+
+            test do
+              assert_match "'"${VERSION}"'", shell_output("#{bin}/peel --version")
+            end
+          end'
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/TOMFoolery-Labs/homebrew-tap.git"
+          cd homebrew-tap
+          mkdir -p Formula
+          echo "$FORMULA" > Formula/peel.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/peel.rb
+          git commit -m "Update peel to ${VERSION}"
+          git push

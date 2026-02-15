@@ -28,9 +28,12 @@ Peel bridges that gap:
 ## Installation
 
 ```bash
+# Homebrew (recommended)
+brew install tomfoolery-labs/tap/peel
+
 # From source
-git clone https://github.com/tomfoolery-labs/peel.git
-cd peel
+git clone https://github.com/tomfoolery-labs/peel-cli.git
+cd peel-cli
 swift build -c release
 cp .build/release/peel /usr/local/bin/peel
 
@@ -221,7 +224,7 @@ peel/
 - [ ] Foreground log-following mode
 
 ### Future
-- [ ] Homebrew formula
+- [x] Homebrew formula
 - [ ] Docker API socket emulation (for IDE/tool compatibility)
 - [ ] Plugin system for custom command mappings
 
