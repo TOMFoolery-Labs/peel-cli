@@ -111,7 +111,7 @@ Apple Containers use lightweight per-container VMs via Virtualization.framework,
   peel run -v /tmp/mydata:/data debian:testing ls /data   # works
   peel run -v /tmp/missing:/data debian:testing ls /data   # errors
   ```
-- **File mounts are not supported** — Apple Containers can only mount directories, not individual files. Peel detects file mounts and automatically mounts the parent directory instead, with a warning. For example, `-v ./config/app.yml:/etc/app.yml` becomes a mount of `./config` at `/etc`.
+- **File mounts are not supported** — Apple Containers can only mount directories, not individual files. Peel detects file mounts and skips them with a warning. Mounting the parent directory would silently overwrite other files in the target directory inside the container, so peel opts for safety. If your compose file mounts a config file like `-v ./config/app.yml:/etc/app/app.yml`, consider mounting the whole directory (`./config:/etc/app`) or copying the file into a custom image.
 - **Named volumes** can be created and listed (`peel volume create`, `peel volume ls`) but cannot currently be mounted into containers with `container run`. This is an upstream Apple Containers limitation.
 
 ### Container IDs

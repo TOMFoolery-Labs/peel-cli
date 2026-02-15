@@ -62,16 +62,15 @@ import Foundation
     #expect(FlagMapper.translateVolume("~/data:/container/data") == ["--mount", "source=~/data,target=/container/data"])
 }
 
-@Test func translateFileMountFallsBackToDirectory() throws {
+@Test func translateFileMountSkipped() throws {
     // Create a temp file to trigger file mount detection
-    let tmpDir = NSTemporaryDirectory()
-    let tmpFile = (tmpDir as NSString).appendingPathComponent("peel-test-\(UUID().uuidString).txt")
+    let tmpFile = (NSTemporaryDirectory() as NSString).appendingPathComponent("peel-test-\(UUID().uuidString).txt")
     FileManager.default.createFile(atPath: tmpFile, contents: nil)
     defer { try? FileManager.default.removeItem(atPath: tmpFile) }
 
     let result = FlagMapper.translateVolume("\(tmpFile):/app/config.txt:ro")
-    // Should mount the parent directory instead of the file
-    #expect(result == ["--mount", "source=\(tmpDir.hasSuffix("/") ? String(tmpDir.dropLast()) : tmpDir),target=/app,readonly"])
+    // File mounts should be skipped (empty args) with a warning
+    #expect(result == [])
 }
 
 @Test func translateNonexistentPathPassesThrough() {

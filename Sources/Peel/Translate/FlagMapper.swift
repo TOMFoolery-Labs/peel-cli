@@ -32,20 +32,16 @@ enum FlagMapper {
         let isBindMount = source.hasPrefix("/") || source.hasPrefix("./") || source.hasPrefix("~")
 
         if isBindMount {
-            var effectiveSource = source
-            var effectiveTarget = target
-
             // Apple Containers only supports directory mounts, not file mounts.
-            // Detect file paths and mount the parent directory instead.
-            let resolvedSource = (effectiveSource as NSString).expandingTildeInPath
+            // Detect file paths and skip the mount with a warning.
+            let resolvedSource = (source as NSString).expandingTildeInPath
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: resolvedSource, isDirectory: &isDir), !isDir.boolValue {
-                effectiveSource = (effectiveSource as NSString).deletingLastPathComponent
-                effectiveTarget = (effectiveTarget as NSString).deletingLastPathComponent
-                fputs("peel: warning: Apple Containers does not support file mounts, mounting directory instead: \(effectiveSource):\(effectiveTarget)\n", stderr)
+                fputs("peel: warning: skipping file mount '\(source):\(target)' — Apple Containers only supports directory mounts\n", stderr)
+                return []
             }
 
-            var mountSpec = "source=\(effectiveSource),target=\(effectiveTarget)"
+            var mountSpec = "source=\(source),target=\(target)"
             if let options = options {
                 // Translate Docker options like "ro" to mount options
                 if options.contains("ro") {
