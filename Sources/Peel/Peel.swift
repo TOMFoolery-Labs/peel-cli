@@ -24,7 +24,23 @@ struct Peel: ParsableCommand {
             Exec.self,
             Inspect.self,
             Doctor.self,
+            Compose.self,
+            Link.self,
+            Unlink.self,
         ],
         defaultSubcommand: nil
     )
+}
+
+/// Convenience alias so `peel unlink` works without typing `peel link remove`.
+struct Unlink: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "unlink",
+        abstract: "Remove the docker → peel symlink (alias for 'link remove')"
+    )
+
+    func run() throws {
+        let cmd = try LinkRemove.parse([])
+        try cmd.run()
+    }
 }
