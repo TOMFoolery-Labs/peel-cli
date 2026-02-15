@@ -131,6 +131,14 @@ struct ComposeUp: ParsableCommand {
         let orderedNames = topologicalSort(services: composeFile.services)
         let networks = collectNetworks(composeFile: composeFile, projectName: project)
 
+        // Warn about unsupported keys
+        for name in orderedNames {
+            guard let service = composeFile.services[name] else { continue }
+            for key in service.unsupportedKeys {
+                fputs("peel: warning: service '\(name)' uses unsupported option '\(key)' (ignored)\n", stderr)
+            }
+        }
+
         // Create networks before starting services
         for network in networks {
             if dryRun {

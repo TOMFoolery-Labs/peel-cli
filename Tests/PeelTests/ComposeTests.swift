@@ -371,6 +371,37 @@ import Testing
     #expect(name == "myprojectv2")
 }
 
+// MARK: - Unsupported Key Detection Tests
+
+@Test func detectUnsupportedKeys() throws {
+    let yaml = """
+    services:
+      web:
+        image: nginx
+        healthcheck:
+          test: ["CMD", "curl", "-f", "http://localhost"]
+          interval: 10s
+        deploy:
+          replicas: 3
+    """
+    let compose = try ComposeFileLoader.parse(yaml)
+    #expect(compose.services["web"]?.unsupportedKeys == ["deploy", "healthcheck"])
+}
+
+@Test func noUnsupportedKeys() throws {
+    let yaml = """
+    services:
+      web:
+        image: nginx
+        ports:
+          - "8080:80"
+        environment:
+          - FOO=bar
+    """
+    let compose = try ComposeFileLoader.parse(yaml)
+    #expect(compose.services["web"]?.unsupportedKeys == [])
+}
+
 // MARK: - depends_on Parsing Tests
 
 @Test func parseDependsOnShortForm() throws {

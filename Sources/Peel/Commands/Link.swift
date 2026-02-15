@@ -28,8 +28,27 @@ extension Link {
         return URL(fileURLWithPath: raw).resolvingSymlinksInPath().path
     }
 
-    /// Returns the directory containing the peel binary.
+    /// Finds the directory on PATH where `peel` is accessible to the user.
+    /// This may differ from the resolved binary path when installed via Homebrew,
+    /// where /opt/homebrew/bin/peel is a symlink into the Cellar.
+    /// Falls back to the resolved binary's directory if not found in PATH.
     static func symlinkDirectory(forBinary binaryPath: String) -> String {
+        let fm = FileManager.default
+        let resolvedPeel = URL(fileURLWithPath: binaryPath).resolvingSymlinksInPath().path
+
+        // Search PATH for a "peel" entry that resolves to the same binary
+        if let pathEnv = ProcessInfo.processInfo.environment["PATH"] {
+            for dir in pathEnv.split(separator: ":").map(String.init) {
+                let candidate = (dir as NSString).appendingPathComponent("peel")
+                guard fm.fileExists(atPath: candidate) else { continue }
+                let resolved = URL(fileURLWithPath: candidate).resolvingSymlinksInPath().path
+                if resolved == resolvedPeel {
+                    return dir
+                }
+            }
+        }
+
+        // Fallback: same directory as the resolved binary
         return URL(fileURLWithPath: binaryPath).deletingLastPathComponent().path
     }
 

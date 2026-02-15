@@ -24,6 +24,15 @@ struct ComposeService: Decodable {
     let dependsOn: [String]?
     let networks: [String]?
 
+    /// Keys present in the YAML that peel does not support.
+    let unsupportedKeys: [String]
+
+    /// Keys that peel knows how to handle (or intentionally ignores like restart).
+    private static let supportedKeys: Set<String> = [
+        "image", "command", "container_name", "ports", "volumes",
+        "environment", "restart", "depends_on", "networks",
+    ]
+
     enum CodingKeys: String, CodingKey {
         case image
         case command
@@ -34,6 +43,14 @@ struct ComposeService: Decodable {
         case restart
         case dependsOn = "depends_on"
         case networks
+    }
+
+    /// Dynamic coding key for detecting unsupported fields.
+    private struct DynamicKey: CodingKey {
+        var stringValue: String
+        var intValue: Int?
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { return nil }
     }
 
     init(from decoder: Decoder) throws {
@@ -59,6 +76,13 @@ struct ComposeService: Decodable {
         } else {
             dependsOn = nil
         }
+
+        // Detect unsupported keys
+        let dynamic = try decoder.container(keyedBy: DynamicKey.self)
+        unsupportedKeys = dynamic.allKeys
+            .map(\.stringValue)
+            .filter { !Self.supportedKeys.contains($0) }
+            .sorted()
     }
 
     /// Memberwise initializer for tests and internal use.
@@ -82,6 +106,7 @@ struct ComposeService: Decodable {
         self.restart = restart
         self.dependsOn = dependsOn
         self.networks = networks
+        self.unsupportedKeys = []
     }
 }
 
