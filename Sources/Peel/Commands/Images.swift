@@ -6,6 +6,9 @@ struct Images: ParsableCommand {
         abstract: "List images (translates to: container image list)"
     )
 
+    @Flag(name: .long, help: "Show the translated command without executing it")
+    var dryRun: Bool = false
+
     @Flag(name: .shortAndLong, help: "Only show image IDs")
     var quiet: Bool = false
 
@@ -14,7 +17,7 @@ struct Images: ParsableCommand {
 
         if quiet { args.append("--quiet") }
 
-        let exitCode = ProcessRunner.exec(args)
+        let exitCode = ProcessRunner.execOrDryRun(args, dryRun: dryRun)
         throw ExitCode(exitCode)
     }
 }

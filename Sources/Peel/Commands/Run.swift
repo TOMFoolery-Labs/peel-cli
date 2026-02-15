@@ -8,6 +8,9 @@ struct Run: ParsableCommand {
 
     // --- Docker-compatible flags ---
 
+    @Flag(name: .long, help: "Show the translated command without executing it")
+    var dryRun: Bool = false
+
     @Flag(name: .shortAndLong, help: "Run container in background")
     var detach: Bool = false
 
@@ -23,13 +26,13 @@ struct Run: ParsableCommand {
     @Option(name: .long, help: "Assign a name to the container")
     var name: String?
 
-    @Option(name: .shortAndLong, parsing: .upToNextOption, help: "Publish a container's port(s) to the host")
+    @Option(name: .shortAndLong, parsing: .singleValue, help: "Publish a container's port(s) to the host")
     var publish: [String] = []
 
-    @Option(name: .shortAndLong, parsing: .upToNextOption, help: "Bind mount a volume")
+    @Option(name: .shortAndLong, parsing: .singleValue, help: "Bind mount a volume")
     var volume: [String] = []
 
-    @Option(name: .shortAndLong, parsing: .upToNextOption, help: "Set environment variables")
+    @Option(name: .shortAndLong, parsing: .singleValue, help: "Set environment variables")
     var env: [String] = []
 
     @Option(name: .long, help: "Connect a container to a network")
@@ -94,7 +97,7 @@ struct Run: ParsableCommand {
         // Append any trailing command
         args.append(contentsOf: command)
 
-        let exitCode = ProcessRunner.exec(args)
+        let exitCode = ProcessRunner.execOrDryRun(args, dryRun: dryRun, interactive: interactive || tty)
         throw ExitCode(exitCode)
     }
 }

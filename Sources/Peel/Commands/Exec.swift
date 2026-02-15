@@ -6,6 +6,9 @@ struct Exec: ParsableCommand {
         abstract: "Execute a command in a running container (translates to: container exec)"
     )
 
+    @Flag(name: .long, help: "Show the translated command without executing it")
+    var dryRun: Bool = false
+
     @Flag(name: .shortAndLong, help: "Detached mode: run command in the background")
     var detach: Bool = false
 
@@ -15,7 +18,7 @@ struct Exec: ParsableCommand {
     @Flag(name: .short, help: "Allocate a pseudo-TTY")
     var tty: Bool = false
 
-    @Option(name: .shortAndLong, parsing: .upToNextOption, help: "Set environment variables")
+    @Option(name: .shortAndLong, parsing: .singleValue, help: "Set environment variables")
     var env: [String] = []
 
     @Argument(help: "Container ID")
@@ -38,7 +41,7 @@ struct Exec: ParsableCommand {
         args.append(container)
         args.append(contentsOf: command)
 
-        let exitCode = ProcessRunner.exec(args)
+        let exitCode = ProcessRunner.execOrDryRun(args, dryRun: dryRun, interactive: interactive || tty)
         throw ExitCode(exitCode)
     }
 }

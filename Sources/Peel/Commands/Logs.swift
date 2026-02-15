@@ -6,6 +6,9 @@ struct Logs: ParsableCommand {
         abstract: "Fetch the logs of a container (translates to: container logs)"
     )
 
+    @Flag(name: .long, help: "Show the translated command without executing it")
+    var dryRun: Bool = false
+
     @Flag(name: .shortAndLong, help: "Follow log output")
     var follow: Bool = false
 
@@ -26,7 +29,7 @@ struct Logs: ParsableCommand {
 
         args.append(container)
 
-        let exitCode = ProcessRunner.exec(args)
+        let exitCode = ProcessRunner.execOrDryRun(args, dryRun: dryRun)
         throw ExitCode(exitCode)
     }
 }

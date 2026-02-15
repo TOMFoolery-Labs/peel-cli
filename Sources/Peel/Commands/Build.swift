@@ -6,13 +6,16 @@ struct Build: ParsableCommand {
         abstract: "Build an image from a Dockerfile (translates to: container build)"
     )
 
+    @Flag(name: .long, help: "Show the translated command without executing it")
+    var dryRun: Bool = false
+
     @Option(name: .shortAndLong, help: "Name and optionally a tag in the name:tag format")
     var tag: String?
 
     @Option(name: .shortAndLong, help: "Name of the Dockerfile")
     var file: String?
 
-    @Option(name: .long, parsing: .upToNextOption, help: "Set build-time variables")
+    @Option(name: .long, parsing: .singleValue, help: "Set build-time variables")
     var buildArg: [String] = []
 
     @Flag(name: .long, help: "Do not use cache when building the image")
@@ -47,7 +50,7 @@ struct Build: ParsableCommand {
 
         args.append(context)
 
-        let exitCode = ProcessRunner.exec(args)
+        let exitCode = ProcessRunner.execOrDryRun(args, dryRun: dryRun)
         throw ExitCode(exitCode)
     }
 }

@@ -6,6 +6,9 @@ struct Inspect: ParsableCommand {
         abstract: "Return low-level information on a container (translates to: container inspect)"
     )
 
+    @Flag(name: .long, help: "Show the translated command without executing it")
+    var dryRun: Bool = false
+
     @Argument(help: "Container ID(s) to inspect")
     var containers: [String]
 
@@ -13,7 +16,7 @@ struct Inspect: ParsableCommand {
         var args: [String] = ["inspect"]
         args.append(contentsOf: containers)
 
-        let exitCode = ProcessRunner.exec(args)
+        let exitCode = ProcessRunner.execOrDryRun(args, dryRun: dryRun)
         throw ExitCode(exitCode)
     }
 }

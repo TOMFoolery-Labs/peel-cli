@@ -11,7 +11,7 @@ struct Peel: ParsableCommand {
             
             The thin layer between you and the Apple core.
             """,
-        version: "0.1.0",
+        version: "0.2.0",
         subcommands: [
             Run.self,
             PS.self,
@@ -25,6 +25,8 @@ struct Peel: ParsableCommand {
             Inspect.self,
             Doctor.self,
             Compose.self,
+            Network.self,
+            Volume.self,
             Link.self,
             Unlink.self,
         ],

@@ -7,6 +7,9 @@ struct Remove: ParsableCommand {
         abstract: "Remove one or more containers (translates to: container delete)"
     )
 
+    @Flag(name: .long, help: "Show the translated command without executing it")
+    var dryRun: Bool = false
+
     @Flag(name: .shortAndLong, help: "Force the removal of a running container")
     var force: Bool = false
 
@@ -19,7 +22,7 @@ struct Remove: ParsableCommand {
         if force { args.append("--force") }
         args.append(contentsOf: containers)
 
-        let exitCode = ProcessRunner.exec(args)
+        let exitCode = ProcessRunner.execOrDryRun(args, dryRun: dryRun)
         throw ExitCode(exitCode)
     }
 }

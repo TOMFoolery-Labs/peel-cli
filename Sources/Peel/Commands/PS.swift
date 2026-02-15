@@ -7,6 +7,9 @@ struct PS: ParsableCommand {
         abstract: "List containers (translates to: container ls)"
     )
 
+    @Flag(name: .long, help: "Show the translated command without executing it")
+    var dryRun: Bool = false
+
     @Flag(name: .shortAndLong, help: "Show all containers (default shows just running)")
     var all: Bool = false
 
@@ -19,7 +22,7 @@ struct PS: ParsableCommand {
         if all { args.append("--all") }
         if quiet { args.append("--quiet") }
 
-        let exitCode = ProcessRunner.exec(args)
+        let exitCode = ProcessRunner.execOrDryRun(args, dryRun: dryRun)
         throw ExitCode(exitCode)
     }
 }

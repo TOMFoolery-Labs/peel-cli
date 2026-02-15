@@ -17,6 +17,9 @@ struct ComposeUp: ParsableCommand {
         abstract: "Create and start containers for all services"
     )
 
+    @Flag(name: .long, help: "Show the translated commands without executing them")
+    var dryRun: Bool = false
+
     @Flag(name: .shortAndLong, help: "Detached mode (containers run in background)")
     var detach: Bool = false
 
@@ -63,7 +66,7 @@ struct ComposeUp: ParsableCommand {
             )
             fputs("peel: starting \(containerName)\n", stderr)
 
-            let exitCode = ProcessRunner.exec(args)
+            let exitCode = ProcessRunner.execOrDryRun(args, dryRun: dryRun)
             if exitCode != 0 {
                 fputs("peel: failed to start service '\(serviceName)'\n", stderr)
                 failed = true
@@ -83,6 +86,9 @@ struct ComposeDown: ParsableCommand {
         commandName: "down",
         abstract: "Stop and remove containers for all services"
     )
+
+    @Flag(name: .long, help: "Show the translated commands without executing them")
+    var dryRun: Bool = false
 
     @Option(name: .shortAndLong, help: "Compose file path")
     var file: String?
@@ -108,6 +114,14 @@ struct ComposeDown: ParsableCommand {
                 serviceName: serviceName,
                 projectName: project
             )
+
+            if dryRun {
+                let stopCmd = ([ProcessRunner.containerBinary, "stop", containerName]).joined(separator: " ")
+                let rmCmd = ([ProcessRunner.containerBinary, "rm", containerName]).joined(separator: " ")
+                print(stopCmd)
+                print(rmCmd)
+                continue
+            }
 
             fputs("peel: stopping \(containerName)\n", stderr)
             let stopCode = ProcessRunner.execSilent(["stop", containerName])
