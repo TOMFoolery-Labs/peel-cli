@@ -214,14 +214,15 @@ peel/
 - [x] `peel --dry-run` flag to show translated command without executing
 - [x] Better error messages that map Apple container errors to Docker-familiar terms
 
-### v0.3 — Compose Support (in progress)
+### v0.3 — Compose Support ✅
 - [x] Parse docker-compose.yml files (via Yams)
 - [x] `peel compose up` — translate services to `container run` commands
 - [x] `peel compose down` — stop and remove service containers
 - [x] Support for ports, volumes, environment, and command fields
-- [ ] Basic service dependency ordering
-- [ ] Network creation for inter-container communication
-- [ ] Foreground log-following mode
+- [x] Basic service dependency ordering (topological sort via depends_on)
+- [x] Network creation for inter-container communication
+- [x] Foreground log-following mode (`compose up` without `-d`)
+- [x] Warn on unsupported compose options (healthcheck, deploy, etc.)
 
 ### Future
 - [x] Homebrew formula
