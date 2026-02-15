@@ -15,11 +15,17 @@ struct Link: ParsableCommand {
 extension Link {
     /// Resolves the absolute path of the running peel binary.
     static func resolvePeelBinaryPath() -> String {
+        // Use _NSGetExecutablePath for the real binary location,
+        // since argv[0] may be a bare name resolved via PATH.
+        var bufferSize = UInt32(PATH_MAX)
+        var buffer = [CChar](repeating: 0, count: Int(bufferSize))
+        if _NSGetExecutablePath(&buffer, &bufferSize) == 0 {
+            let path = buffer.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
+            return URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        }
+        // Fallback: resolve argv[0] relative to cwd
         let raw = CommandLine.arguments[0]
-        let url = URL(fileURLWithPath: raw).standardized
-        // Resolve symlinks to get the real peel binary
-        let resolved = url.resolvingSymlinksInPath()
-        return resolved.path
+        return URL(fileURLWithPath: raw).resolvingSymlinksInPath().path
     }
 
     /// Returns the directory containing the peel binary.
