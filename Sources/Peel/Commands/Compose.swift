@@ -5,7 +5,7 @@ struct Compose: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "compose",
         abstract: "Manage multi-container applications (translates to: container run/stop/rm)",
-        subcommands: [ComposeUp.self, ComposeDown.self, ComposePS.self, ComposeLogs.self]
+        subcommands: [ComposeUp.self, ComposeDown.self, ComposePS.self, ComposeLogs.self, ComposePull.self]
     )
 }
 
@@ -590,6 +590,72 @@ struct ComposeLogs: ParsableCommand {
 
         for process in logProcesses {
             if process.isRunning { process.terminate() }
+        }
+    }
+}
+
+// MARK: - compose pull
+
+struct ComposePull: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "pull",
+        abstract: "Pull images for all services"
+    )
+
+    @Flag(name: .long, help: "Show the translated commands without executing them")
+    var dryRun: Bool = false
+
+    @Option(name: .shortAndLong, help: "Compose file path")
+    var file: String?
+
+    @Option(name: .shortAndLong, help: "Project name")
+    var projectName: String?
+
+    @Argument(help: "Service name(s) to pull (default: all)")
+    var services: [String] = []
+
+    func run() throws {
+        let composeFile: ComposeFile
+        do {
+            composeFile = try ComposeFileLoader.load(from: file)
+        } catch {
+            fputs("\(error)\n", stderr)
+            throw ExitCode(1)
+        }
+
+        let targetServices: [String]
+        if services.isEmpty {
+            targetServices = composeFile.services.keys.sorted()
+        } else {
+            targetServices = services
+        }
+
+        var failed = false
+        for serviceName in targetServices {
+            guard let service = composeFile.services[serviceName] else {
+                fputs("peel: no such service '\(serviceName)'\n", stderr)
+                failed = true
+                continue
+            }
+
+            guard let image = service.image else {
+                fputs("peel: skipping '\(serviceName)' (no image specified)\n", stderr)
+                continue
+            }
+
+            let resolved = ImageRefResolver.resolve(image)
+            let args = ["image", "pull", resolved]
+
+            fputs("peel: pulling \(resolved) for service '\(serviceName)'\n", stderr)
+            let exitCode = ProcessRunner.execOrDryRun(args, dryRun: dryRun)
+            if exitCode != 0 {
+                fputs("peel: failed to pull image for service '\(serviceName)'\n", stderr)
+                failed = true
+            }
+        }
+
+        if failed {
+            throw ExitCode(1)
         }
     }
 }
