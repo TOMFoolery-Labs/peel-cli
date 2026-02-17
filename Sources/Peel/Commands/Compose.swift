@@ -7,6 +7,24 @@ struct Compose: ParsableCommand {
         abstract: "Manage multi-container applications (translates to: container run/stop/rm)",
         subcommands: [ComposeUp.self, ComposeDown.self, ComposePS.self, ComposeLogs.self, ComposePull.self]
     )
+
+    @Option(name: .shortAndLong, help: "Compose file path")
+    var file: String?
+
+    @Option(name: .shortAndLong, help: "Project name")
+    var projectName: String?
+
+    @Flag(name: .long, help: "Run in backward compatibility mode (accepted, no effect)")
+    var compatibility: Bool = false
+
+    // Shared storage for subcommands to read
+    nonisolated(unsafe) static var sharedFile: String?
+    nonisolated(unsafe) static var sharedProjectName: String?
+
+    mutating func validate() throws {
+        Compose.sharedFile = file
+        Compose.sharedProjectName = projectName
+    }
 }
 
 // MARK: - Topological Sort
@@ -108,22 +126,16 @@ struct ComposeUp: ParsableCommand {
     @Flag(name: .shortAndLong, help: "Detached mode (containers run in background)")
     var detach: Bool = false
 
-    @Option(name: .shortAndLong, help: "Compose file path")
-    var file: String?
-
-    @Option(name: .shortAndLong, help: "Project name")
-    var projectName: String?
-
     func run() throws {
         let composeFile: ComposeFile
         do {
-            composeFile = try ComposeFileLoader.load(from: file)
+            composeFile = try ComposeFileLoader.load(from: Compose.sharedFile)
         } catch {
             fputs("\(error)\n", stderr)
             throw ExitCode(1)
         }
 
-        let project = projectName ?? ComposeFileLoader.deriveProjectName()
+        let project = Compose.sharedProjectName ?? ComposeFileLoader.deriveProjectName()
         let orderedNames = topologicalSort(services: composeFile.services)
         let networks = collectNetworks(composeFile: composeFile, projectName: project)
 
@@ -312,22 +324,16 @@ struct ComposeDown: ParsableCommand {
     @Flag(name: .shortAndLong, help: "Remove named volumes declared in the compose file")
     var volumes: Bool = false
 
-    @Option(name: .shortAndLong, help: "Compose file path")
-    var file: String?
-
-    @Option(name: .shortAndLong, help: "Project name")
-    var projectName: String?
-
     func run() throws {
         let composeFile: ComposeFile
         do {
-            composeFile = try ComposeFileLoader.load(from: file)
+            composeFile = try ComposeFileLoader.load(from: Compose.sharedFile)
         } catch {
             fputs("\(error)\n", stderr)
             throw ExitCode(1)
         }
 
-        let project = projectName ?? ComposeFileLoader.deriveProjectName()
+        let project = Compose.sharedProjectName ?? ComposeFileLoader.deriveProjectName()
         let orderedNames = topologicalSort(services: composeFile.services)
         let networks = collectNetworks(composeFile: composeFile, projectName: project)
 
@@ -399,12 +405,6 @@ struct ComposePS: ParsableCommand {
         abstract: "List containers for compose services"
     )
 
-    @Option(name: .shortAndLong, help: "Compose file path")
-    var file: String?
-
-    @Option(name: .shortAndLong, help: "Project name")
-    var projectName: String?
-
     @Option(name: .long, help: "Output format (table or json)")
     var format: String?
 
@@ -417,13 +417,13 @@ struct ComposePS: ParsableCommand {
     func run() throws {
         let composeFile: ComposeFile
         do {
-            composeFile = try ComposeFileLoader.load(from: file)
+            composeFile = try ComposeFileLoader.load(from: Compose.sharedFile)
         } catch {
             fputs("\(error)\n", stderr)
             throw ExitCode(1)
         }
 
-        let project = projectName ?? ComposeFileLoader.deriveProjectName()
+        let project = Compose.sharedProjectName ?? ComposeFileLoader.deriveProjectName()
 
         // Get all container names for this compose project
         let containerNames = composeFile.services.map { (serviceName, service) in
@@ -491,12 +491,6 @@ struct ComposeLogs: ParsableCommand {
         abstract: "View output from containers"
     )
 
-    @Option(name: .long, help: "Compose file path")
-    var file: String?
-
-    @Option(name: .shortAndLong, help: "Project name")
-    var projectName: String?
-
     @Flag(name: .shortAndLong, help: "Follow log output")
     var follow: Bool = false
 
@@ -509,13 +503,13 @@ struct ComposeLogs: ParsableCommand {
     func run() throws {
         let composeFile: ComposeFile
         do {
-            composeFile = try ComposeFileLoader.load(from: file)
+            composeFile = try ComposeFileLoader.load(from: Compose.sharedFile)
         } catch {
             fputs("\(error)\n", stderr)
             throw ExitCode(1)
         }
 
-        let project = projectName ?? ComposeFileLoader.deriveProjectName()
+        let project = Compose.sharedProjectName ?? ComposeFileLoader.deriveProjectName()
 
         // Determine which services to show logs for
         let targetServices: [String]
@@ -627,19 +621,13 @@ struct ComposePull: ParsableCommand {
     @Flag(name: .long, help: "Show the translated commands without executing them")
     var dryRun: Bool = false
 
-    @Option(name: .shortAndLong, help: "Compose file path")
-    var file: String?
-
-    @Option(name: .shortAndLong, help: "Project name")
-    var projectName: String?
-
     @Argument(help: "Service name(s) to pull (default: all)")
     var services: [String] = []
 
     func run() throws {
         let composeFile: ComposeFile
         do {
-            composeFile = try ComposeFileLoader.load(from: file)
+            composeFile = try ComposeFileLoader.load(from: Compose.sharedFile)
         } catch {
             fputs("\(error)\n", stderr)
             throw ExitCode(1)
