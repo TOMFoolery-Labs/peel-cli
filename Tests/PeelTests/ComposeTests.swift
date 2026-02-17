@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import peel
 
 // MARK: - YAML Parsing Tests
@@ -274,7 +275,9 @@ import Testing
         projectName: "proj"
     )
     #expect(args.contains("--mount"))
-    #expect(args.contains("source=./src,target=/app/src"))
+    let cwd = FileManager.default.currentDirectoryPath
+    let resolvedSrc = (cwd as NSString).appendingPathComponent("./src")
+    #expect(args.contains("source=\(resolvedSrc),target=/app/src"))
     #expect(args.contains("--volume"))
     #expect(args.contains("data:/var/data"))
 }

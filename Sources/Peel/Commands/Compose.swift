@@ -68,12 +68,8 @@ func collectNetworks(composeFile: ComposeFile, projectName: String) -> [String] 
         return topLevel.keys.sorted().map { "\(projectName)_\($0)" }
     }
 
-    // Check if any service references networks
-    let hasServiceNetworks = composeFile.services.values.contains { service in
-        service.networks != nil && !(service.networks!.isEmpty)
-    }
-
-    if hasServiceNetworks {
+    // Always create a default network when there are services
+    if !composeFile.services.isEmpty {
         return ["\(projectName)_default"]
     }
 
@@ -149,6 +145,18 @@ struct ComposeUp: ParsableCommand {
             }
         }
 
+        // Create named volumes
+        if let declaredVolumes = composeFile.volumes {
+            for name in declaredVolumes.keys.sorted() {
+                if dryRun {
+                    print("\(ProcessRunner.containerBinary) volume create \(name)")
+                } else {
+                    fputs("peel: creating volume \(name)\n", stderr)
+                    ProcessRunner.execSilent(["volume", "create", name])
+                }
+            }
+        }
+
         // Start services in dependency order
         var failed = false
         var startedContainers: [(name: String, serviceName: String)] = []
@@ -181,7 +189,9 @@ struct ComposeUp: ParsableCommand {
                 serviceName: serviceName,
                 projectName: project
             )
-            fputs("peel: starting \(containerName)\n", stderr)
+            if !dryRun {
+                fputs("peel: starting \(containerName)\n", stderr)
+            }
 
             let exitCode = ProcessRunner.execOrDryRun(args, dryRun: dryRun)
             if exitCode != 0 {
@@ -360,6 +370,18 @@ struct ComposeDown: ParsableCommand {
             } else {
                 fputs("peel: removing network \(network)\n", stderr)
                 ProcessRunner.execSilent(["network", "delete", network])
+            }
+        }
+
+        // Delete named volumes if --volumes flag is set
+        if volumes, let declaredVolumes = composeFile.volumes {
+            for name in declaredVolumes.keys.sorted() {
+                if dryRun {
+                    print("\(ProcessRunner.containerBinary) volume delete \(name)")
+                } else {
+                    fputs("peel: removing volume \(name)\n", stderr)
+                    ProcessRunner.execSilent(["volume", "delete", name])
+                }
             }
         }
 

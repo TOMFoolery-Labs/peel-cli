@@ -4,11 +4,18 @@ import Foundation
 struct ComposeFile: Decodable {
     let services: [String: ComposeService]
     let networks: [String: ComposeNetwork?]?
+    let volumes: [String: ComposeVolume?]?
 }
 
 /// A network definition within a compose file.
 /// Parsed but mostly ignored — Apple Containers has one network type.
 struct ComposeNetwork: Decodable {
+    let driver: String?
+}
+
+/// A volume definition within a compose file.
+/// Parsed so named volumes can be created before services start.
+struct ComposeVolume: Decodable {
     let driver: String?
 }
 

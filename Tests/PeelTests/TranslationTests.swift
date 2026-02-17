@@ -32,6 +32,14 @@ import Foundation
     #expect(ImageRefResolver.resolve("alpine") == "docker.io/library/alpine:latest")
 }
 
+@Test func resolveImageWithDottedTag() {
+    #expect(ImageRefResolver.resolve("mongo:4.4") == "docker.io/library/mongo:4.4")
+}
+
+@Test func resolveNamespacedImageWithDottedTag() {
+    #expect(ImageRefResolver.resolve("crapi/crapi-web:1.2.3") == "docker.io/crapi/crapi-web:1.2.3")
+}
+
 // MARK: - FlagMapper Volume Translation Tests
 
 @Test func translateBindMount() {
@@ -47,7 +55,9 @@ import Foundation
 }
 
 @Test func translateRelativeBindMount() {
-    #expect(FlagMapper.translateVolume("./local:/container/path") == ["--mount", "source=./local,target=/container/path"])
+    let cwd = FileManager.default.currentDirectoryPath
+    let expected = (cwd as NSString).appendingPathComponent("./local")
+    #expect(FlagMapper.translateVolume("./local:/container/path") == ["--mount", "source=\(expected),target=/container/path"])
 }
 
 @Test func translateSinglePath() {

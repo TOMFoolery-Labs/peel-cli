@@ -28,9 +28,10 @@ enum ImageRefResolver {
     /// - Parameter ref: The Docker-style image reference
     /// - Returns: A fully qualified image reference
     static func resolve(_ ref: String) -> String {
-        // If it already contains a registry domain (has a dot in the first segment), pass through
+        // If it already contains a registry domain (has a dot in the host part of the first segment), pass through
         let firstSegment = ref.split(separator: "/").first.map(String.init) ?? ref
-        if firstSegment.contains(".") || firstSegment.contains(":") && firstSegment.contains(".") {
+        let hostPart = firstSegment.split(separator: ":").first.map(String.init) ?? firstSegment
+        if hostPart.contains(".") {
             // Already fully qualified (e.g., ghcr.io/..., registry.example.com/...)
             return ensureTag(ref)
         }

@@ -41,7 +41,16 @@ enum FlagMapper {
                 return []
             }
 
-            var mountSpec = "source=\(source),target=\(target)"
+            // Resolve relative paths to absolute so the container CLI can find them
+            let resolvedForMount: String
+            if source.hasPrefix("./") || source.hasPrefix("../") {
+                let cwd = FileManager.default.currentDirectoryPath
+                resolvedForMount = (cwd as NSString).appendingPathComponent(source)
+            } else {
+                resolvedForMount = source
+            }
+
+            var mountSpec = "source=\(resolvedForMount),target=\(target)"
             if let options = options {
                 // Translate Docker options like "ro" to mount options
                 if options.contains("ro") {
